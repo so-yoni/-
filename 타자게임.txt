@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>aria의 타자 연습 게임</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f9; padding: 50px; }
+        #word { font-size: 3rem; margin-bottom: 20px; color: #333; }
+        input { font-size: 1.5rem; padding: 10px; width: 300px; text-align: center; }
+        #score { font-size: 1.2rem; margin-top: 20px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>🌿 종자학 용어 타자 연습</h1>
+    <div id="word">준비...</div>
+    <input type="text" id="input" placeholder="여기에 입력하세요" autofocus>
+    <div id="score">점수: <span id="score-val">0</span></div>
+
+    <script>
+        const words = ['종자학', '육종학', '웅성불임', '자가불화합성', '종자퇴화', '배수성', '유전자', '식물생리학'];
+        let score = 0;
+        const wordDisplay = document.getElementById('word');
+        const input = document.getElementById('input');
+        const scoreDisplay = document.getElementById('score-val');
+
+        function nextWord() {
+            const randomIndex = Math.floor(Math.random() * words.length);
+            wordDisplay.innerText = words[randomIndex];
+        }
+
+        input.addEventListener('input', () => {
+            if (input.value === wordDisplay.innerText) {
+                score++;
+                scoreDisplay.innerText = score;
+                input.value = '';
+                nextWord();
+            }
+        });
+
+        nextWord(); // 첫 단어 표시
+    </script>
+</body>
+</html>
