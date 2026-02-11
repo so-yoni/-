@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>타자연습 게임</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; background:#0b1020; color:#e9ecf1; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .card { background:#121a33; border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    label { font-size: 13px; opacity:.9; }
+    select, button, input[type="text"] {
+      background:#0f1630; color:#e9ecf1; border:1px solid rgba(255,255,255,.12);
+      border-radius: 12px; padding:10px 12px; font-size: 14px;
+    }
+    button { cursor:pointer; }
+    button.primary { background:#2a5bff; border-color: rgba(42,91,255,.5); }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .target {
+      margin-top: 14px; padding: 14px; border-radius: 14px;
+      background:#0f1630; border:1px solid rgba(255,255,255,.10);
+      line-height: 1.9; font-size: 20px; word-break: break-word;
+      min-height: 92px;
+    }
+    .target span.correct { color:#6dff9c; }
+    .target span.wrong { color:#ff6d6d; text-decoration: underline; text-decoration-thickness: 2px; }
+    .target span.current { background: rgba(255,255,255,.14); border-radius: 6px; padding: 1px 2px; }
+    .inputArea { margin-top: 12px; }
+    .typingInput {
+      width: 100%; box-sizing: border-box;
+      padding: 14px 14px; border-radius: 14px;
+      outline: none; font-size: 18px;
+    }
+    .stats { margin-top: 12px; display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+    .stat { background:#0f1630; border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:12px; }
+    .stat .k { font-size: 12px; opacity:.85; }
+    .stat .v { margin-top:6px; font-size: 18px; font-weight: 700; }
+    .hint { margin-top: 10px; font-size: 12px; opacity: .75; }
+    .footer { margin-top: 10px; font-size: 12px; opacity: .7; }
+    @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>⌨️ 타자연습 게임</h1>
+
+    <div class="card">
+      <div class="row">
+        <label>
+          언어
+          <select id="lang">
+            <option value="kr">한글</option>
+            <option value="en">영문</option>
+          </select>
+        </label>
+
+        <label>
+          모드
+          <select id="mode">
+            <option value="sentence">문장</option>
+            <option value="words">단어</option>
+          </select>
+        </label>
+
+        <label>
+          난이도(길이)
+          <select id="difficulty">
+            <option value="short">짧게</option>
+            <option value="mid" selected>보통</option>
+            <option value="long">길게</option>
+          </select>
+        </label>
+
+        <label>
+          시간 제한
+          <select id="timeLimit">
+            <option value="0" selected>없음</option>
+            <option value="30">30초</option>
+            <option value="60">60초</option>
+            <option value="120">120초</option>
+          </select>
+        </label>
+
+        <button class="primary" id="startBtn">시작</button>
+        <button id="resetBtn" disabled>리셋</button>
+      </div>
+
+      <div class="target" id="target" aria-label="목표 문장"></div>
+
+      <div class="inputArea">
+        <input id="typingInput" class="typingInput" type="text" placeholder="여기에 타이핑…" disabled />
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="k">시간</div><div class="v" id="timeV">0.0s</div></div>
+        <div class="stat"><div class="k">WPM</div><div class="v" id="wpmV">0</div></div>
+        <div class="stat"><div class="k">정확도</div><div class="v" id="accV">100%</div></div>
+        <div class="stat"><div class="k">오타</div><div class="v" id="errV">0</div></div>
+      </div>
+
+      <div class="hint">팁: 시작 후 <b>ESC</b>로 리셋할 수 있어요. (한글 입력은 조합 중 표시가 흔들릴 수 있어서 조합 완료 후 채점합니다.)</div>
+      <div class="footer">원하면 다음 단계로: 점수판(localStorage), 랭킹, 소리, 레벨/스테이지, 문장 업로드까지 확장 가능!</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const langEl = $("lang");
+  const modeEl = $("mode");
+  const diffEl = $("difficulty");
+  const timeLimitEl = $("timeLimit");
+  const startBtn = $("startBtn");
+  const resetBtn = $("resetBtn");
+  const targetEl = $("target");
+  const inputEl = $("typingInput");
+
+  const timeV = $("timeV");
+  const wpmV = $("wpmV");
+  const accV = $("accV");
+  const errV = $("errV");
+
+  const WORDS_EN = [
+    "seed","growth","urban","garden","policy","farm","market","learn","focus","future",
+    "project","simple","typing","practice","energy","system","nature","soil","water","plant"
+  ];
+  const WORDS_KR = [
+    "도시농업","씨앗","발아","재배","토양","관수","순환","성장","학습","집중",
+    "기록","계획","실습","정확도","속도","기술","환경","정원","채소","관리"
+  ];
+
+  const SENT_EN = [
+    "Practice makes progress, not perfection.",
+    "Type the text smoothly and keep your eyes on the target.",
+    "Small steps every day can build a surprisingly strong skill.",
+    "Accuracy first, then speed; both will rise together."
+  ];
+  const SENT_KR = [
+    "정확도가 먼저이고, 속도는 그 다음에 자연스럽게 따라옵니다.",
+    "눈은 문장을 보고 손은 부드럽게 움직이도록 연습해 보세요.",
+    "작은 습관을 매일 반복하면 실력이 생각보다 빠르게 올라갑니다.",
+    "긴장하지 말고 일정한 리듬으로 또박또박 입력해 보세요."
+  ];
+
+  let targetText = "";
+  let startTime = null;
+  let timerId = null;
+  let finished = false;
+
+  // 한글 IME 조합 처리
+  let isComposing = false;
+
+  function pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function buildTarget() {
+    const lang = langEl.value;
+    const mode = modeEl.value;
+    const diff = diffEl.value;
+
+    const count = diff === "short" ? 8 : diff === "mid" ? 14 : 22;
+
+    if (mode === "words") {
+      const bank = (lang === "kr") ? WORDS_KR : WORDS_EN;
+      const words = Array.from({ length: count }, () => pick(bank));
+      return words.join(lang === "kr" ? " " : " ");
+    } else {
+      const bank = (lang === "kr") ? SENT_KR : SENT_EN;
+      const base = pick(bank);
+      if (diff === "short") return base;
+      if (diff === "mid") return base + " " + pick(bank);
+      return base + " " + pick(bank) + " " + pick(bank);
+    }
+  }
+
+  function renderTarget(typed = "") {
+    targetEl.innerHTML = "";
+    const maxLen = Math.max(targetText.length, typed.length);
+
+    for (let i = 0; i < maxLen; i++) {
+      const span = document.createElement("span");
+      const tChar = targetText[i] ?? "";
+      const uChar = typed[i] ?? "";
+
+      if (i < typed.length) {
+        if (tChar === uChar) span.classList.add("correct");
+        else span.classList.add("wrong");
+      } else if (i === typed.length && i < targetText.length) {
+        span.classList.add("current");
+      }
+
+      span.textContent = tChar || (uChar ? "␣" : ""); // extra typed char 표시(빈칸 느낌)
+      if (!tChar && uChar) span.textContent = uChar; // 목표보다 더 친 글자 표시
+
+      targetEl.appendChild(span);
+    }
+  }
+
+  function calcStats(typed) {
+    // correct chars within target length
+    let correct = 0;
+    let errors = 0;
+
+    const len = Math.min(typed.length, targetText.length);
+    for (let i = 0; i < len; i++) {
+      if (typed[i] === targetText[i]) correct++;
+      else errors++;
+    }
+    // extra typed beyond target counts as errors
+    if (typed.length > targetText.length) errors += (typed.length - targetText.length);
+
+    const totalTyped = typed.length || 1;
+    const acc = Math.max(0, Math.round((correct / totalTyped) * 100));
+
+    // WPM: (typed chars / 5) / minutes
+    const elapsedSec = startTime ? (performance.now() - startTime) / 1000 : 0;
+    const minutes = Math.max(elapsedSec / 60, 1/600); // avoid zero
+    const wpm = Math.max(0, Math.round((typed.length / 5) / minutes));
+
+    return { correct, errors, acc, wpm, elapsedSec };
+  }
+
+  function updateUI(typed) {
+    renderTarget(typed);
+    const { errors, acc, wpm, elapsedSec } = calcStats(typed);
+
+    timeV.textContent = `${elapsedSec.toFixed(1)}s`;
+    wpmV.textContent = `${wpm}`;
+    accV.textContent = `${acc}%`;
+    errV.textContent = `${errors}`;
+  }
+
+  function stop() {
+    finished = true;
+    inputEl.disabled = true;
+    startBtn.disabled = false;
+    resetBtn.disabled = false;
+    if (timerId) clearInterval(timerId);
+    timerId = null;
+  }
+
+  function hardReset() {
+    finished = false;
+    startTime = null;
+    if (timerId) clearInterval(timerId);
+    timerId = null;
+
+    targetText = buildTarget();
+    inputEl.value = "";
+    inputEl.disabled = true;
+    startBtn.disabled = false;
+    resetBtn.disabled = true;
+
+    timeV.textContent = "0.0s";
+    wpmV.textContent = "0";
+    accV.textContent = "100%";
+    errV.textContent = "0";
+    renderTarget("");
+  }
+
+  function start() {
+    finished = false;
+    startTime = null;
+
+    targetText = buildTarget();
+    inputEl.value = "";
+    inputEl.disabled = false;
+    inputEl.focus();
+
+    startBtn.disabled = true;
+    resetBtn.disabled = false;
+
+    renderTarget("");
+
+    const limit = Number(timeLimitEl.value);
+    if (timerId) clearInterval(timerId);
+    timerId = setInterval(() => {
+      if (finished) return;
+      const elapsed = startTime ? (performance.now() - startTime) / 1000 : 0;
+      // 시간제한 체크
+      if (limit > 0 && startTime && elapsed >= limit) {
+        updateUI(inputEl.value);
+        stop();
+      } else {
+        // 입력이 없어도 시간은 흐르게 표시
+        timeV.textContent = `${elapsed.toFixed(1)}s`;
+      }
+    }, 100);
+  }
+
+  // Events
+  startBtn.addEventListener("click", start);
+  resetBtn.addEventListener("click", hardReset);
+
+  inputEl.addEventListener("compositionstart", () => { isComposing = true; });
+  inputEl.addEventListener("compositionend", () => {
+    isComposing = false;
+    if (!startTime) startTime = performance.now();
+    updateUI(inputEl.value);
+    checkFinish();
+  });
+
+  inputEl.addEventListener("input", () => {
+    if (finished) return;
+    if (isComposing) return; // 한글 조합 중에는 채점 보류
+    if (!startTime) startTime = performance.now();
+    updateUI(inputEl.value);
+    checkFinish();
+  });
+
+  function checkFinish() {
+    const typed = inputEl.value;
+    if (typed.length >= targetText.length) {
+      // 목표 길이만큼 입력하면 종료(오타 있어도 결과 계산)
+      stop();
+    }
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hardReset();
+  });
+
+  // init
+  hardReset();
+})();
+</script>
+</body>
+</html>
